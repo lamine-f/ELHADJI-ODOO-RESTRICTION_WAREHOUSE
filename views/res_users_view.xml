@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_users_form_entrepot_restric" model="ir.ui.view">
+        <field name="name">res.users.form.entrepot.restric</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <!-- Ajouter un nouvel onglet pour les paramètres d'entrepôt -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Entrepôts" name="warehouse_settings">
+                    <group>
+                        <field name="warehouse_ids" widget="many2many_checkboxes" nolabel="1"
+                               help="Entrepôts assignés à cet utilisateur pour les restrictions d'emplacements"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

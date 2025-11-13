@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_stock_picking_user,stock.picking.user.restric,stock.model_stock_picking,restric_entrepot1.group_entrepot_restric,1,1,1,1
+access_stock_location_user,stock.location.user.restric,stock.model_stock_location,restric_entrepot1.group_entrepot_restric,1,0,0,0
+access_stock_move_user,stock.move.user.restric,stock.model_stock_move,restric_entrepot1.group_entrepot_restric,1,1,1,1
+access_stock_move_line_user,stock.move.line.user.restric,stock.model_stock_move_line,restric_entrepot1.group_entrepot_restric,1,1,1,1
+access_stock_picking_type_user,stock.picking.type.user.restric,stock.model_stock_picking_type,restric_entrepot1.group_entrepot_restric,1,0,0,0
+access_stock_warehouse_user,stock.warehouse.user.restric,stock.model_stock_warehouse,restric_entrepot1.group_entrepot_restric,1,0,0,0
+access_stock_quant_user,stock.quant.user.restric,stock.model_stock_quant,restric_entrepot1.group_entrepot_restric,1,0,0,0

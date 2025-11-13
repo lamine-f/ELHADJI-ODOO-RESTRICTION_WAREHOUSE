@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_restrict_dest" model="ir.ui.view">
+        <field name="name">stock.picking.form.restrict.dest</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="priority">200</field>
+        <field name="arch" type="xml">
+            <!-- Ajouter le champ invisible pour la restriction -->
+            <field name="location_id" position="before">
+                <field name="is_location_restricted" invisible="1"/>
+                <field name="allowed_location_ids" invisible="1"/>
+            </field>
+            
+            <!-- Appliquer domaine sur l'emplacement source pour les utilisateurs restreints -->
+            <field name="location_id" position="attributes">
+                <attribute name="domain">[("id", "in", allowed_location_ids)]</attribute>
+                <attribute name="context">{"allowed_location_ids": allowed_location_ids}</attribute>
+                <attribute name="options">{"no_create": true, "no_create_edit": true, "no_open": true}</attribute>
+            </field>
+            
+            <!-- Appliquer domaine sur l'emplacement de destination -->
+            <field name="location_dest_id" position="attributes">
+                <attribute name="domain">[("id", "in", allowed_location_ids)]</attribute>
+                <attribute name="context">{"allowed_location_ids": allowed_location_ids}</attribute>
+            </field>
+        </field>
+    </record>
+</odoo>

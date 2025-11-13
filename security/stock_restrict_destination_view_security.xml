@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <record id="group_entrepot_restric" model="res.groups">
+            <field name="name">Restriction d'entrepôt</field>
+            <field name="implied_ids" eval="[(4, ref('stock.group_stock_user'))]"/>
+            <field name="comment">Les utilisateurs de ce groupe voient uniquement les emplacements liés à leur entrepôt. Les administrateurs et les gestionnaires d'inventaire ne sont pas affectés.</field>
+        </record>
+        <!-- Ajout: règle d'accès lecture sur stock.location pour le groupe restreint -->
+        <record id="rule_stock_location_read_restric" model="ir.rule">
+            <field name="name">Restriction lecture emplacements par entrepôt (utilisateurs restreints)</field>
+            <field name="model_id" ref="stock.model_stock_location"/>
+            <field name="groups" eval="[(4, ref('restric_entrepot1.group_entrepot_restric'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <!-- Autorise la lecture de tous les emplacements afin d'éviter les erreurs
+                 lors de l'affichage de documents existants, les restrictions de
+                 sélection/édition restant gérées côté Python -->
+            <field name="domain_force">[(1,'=',1)]</field>
+        </record>
+
+        <!-- Restriction des types d'opération (picking types) par entrepôt -->
+        <record id="rule_stock_picking_type_restric" model="ir.rule">
+            <field name="name">Restriction types d'opération par entrepôt (utilisateurs restreints)</field>
+            <field name="model_id" ref="stock.model_stock_picking_type"/>
+            <field name="groups" eval="[(4, ref('restric_entrepot1.group_entrepot_restric'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <!-- Restrict to picking types of assigned warehouses -->
+            <field name="domain_force">[('warehouse_id', 'in', user.warehouse_ids.ids)]</field>
+        </record>
+
+        <!-- Restriction des opérations de transfert (pickings) par entrepôt -->
+        <record id="rule_stock_picking_restric" model="ir.rule">
+            <field name="name">Restriction opérations par entrepôt (utilisateurs restreints)</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="groups" eval="[(4, ref('restric_entrepot1.group_entrepot_restric'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <!-- Restrict to pickings of assigned warehouses -->
+            <field name="domain_force">[('picking_type_id.warehouse_id', 'in', user.warehouse_ids.ids)]</field>
+        </record>
+
+        <!-- Restriction des mouvements de stock par entrepôt -->
+        <record id="rule_stock_move_restric" model="ir.rule">
+            <field name="name">Restriction mouvements par entrepôt (utilisateurs restreints)</field>
+            <field name="model_id" ref="stock.model_stock_move"/>
+            <field name="groups" eval="[(4, ref('restric_entrepot1.group_entrepot_restric'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <!-- Autorise la lecture des mouvements des entrepôts assignés.
+                 Accepte:
+                 1. Mouvements vers/depuis locations transit avec warehouse_id assigné
+                 2. Mouvements vers/depuis locations internes/view (filtrées par warehouse par _search())
+                 La restriction fine par entrepôt est gérée par StockMove._search() -->
+            <field name="domain_force">['|', '|', '|', '|',
+                ('location_id.warehouse_id', 'in', user.warehouse_ids.ids),
+                ('location_id.usage', 'in', ('internal', 'view')),
+                ('location_dest_id.warehouse_id', 'in', user.warehouse_ids.ids),
+                ('location_dest_id.usage', 'in', ('internal', 'view')),
+                ('location_id', '=', False)
+            ]</field>
+        </record>
+
+        <!-- Restriction des lignes de mouvement de stock par entrepôt -->
+        <record id="rule_stock_move_line_restric" model="ir.rule">
+            <field name="name">Restriction lignes de mouvement par entrepôt (utilisateurs restreints)</field>
+            <field name="model_id" ref="stock.model_stock_move_line"/>
+            <field name="groups" eval="[(4, ref('restric_entrepot1.group_entrepot_restric'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <!-- Autorise la lecture des lignes de mouvement des entrepôts assignés.
+                 Accepte:
+                 1. Lignes vers/depuis locations transit avec warehouse_id assigné
+                 2. Lignes vers/depuis locations internes/view (filtrées par warehouse par _search())
+                 La restriction fine par entrepôt est gérée par StockMove._search() -->
+            <field name="domain_force">['|', '|', '|', '|',
+                ('move_id.location_id.warehouse_id', 'in', user.warehouse_ids.ids),
+                ('move_id.location_id.usage', 'in', ('internal', 'view')),
+                ('move_id.location_dest_id.warehouse_id', 'in', user.warehouse_ids.ids),
+                ('move_id.location_dest_id.usage', 'in', ('internal', 'view')),
+                ('move_id.location_id', '=', False)
+            ]</field>
+        </record>
+
+        <!-- Restriction des quantités en stock par entrepôt -->
+        <record id="rule_stock_quant_restric" model="ir.rule">
+            <field name="name">Restriction quantités par entrepôt (utilisateurs restreints)</field>
+            <field name="model_id" ref="stock.model_stock_quant"/>
+            <field name="groups" eval="[(4, ref('restric_entrepot1.group_entrepot_restric'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+            <!-- Autorise la lecture de TOUTES les quantités. La restriction fine par entrepôt
+                 est entièrement gérée par StockQuant._search() qui filtre correctement selon
+                 les entrepôts assignés dynamiquement à l'utilisateur (warehouse_ids).
+
+                 NOTE: La rule ir.rule ne peut pas gérer correctement les locations enfants
+                 (child_of) de la racine d'un entrepôt, donc elle ne peut pas faire le
+                 filtrage complexe. On laisse donc _search() faire tout le filtrage réel. -->
+            <field name="domain_force">[(1,'=',1)]</field>
+        </record>
+
+    </data>
+</odoo>
