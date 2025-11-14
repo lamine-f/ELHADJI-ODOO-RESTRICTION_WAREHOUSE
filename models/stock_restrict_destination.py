@@ -158,6 +158,15 @@ class StockPickingType(models.Model):
 class StockPicking(models.Model):
     _inherit = 'stock.picking'
 
+    # Champ pour marquer les transferts créés automatiquement par routes
+    created_by_route = fields.Boolean(
+        string="Créé par route",
+        default=False,
+        readonly=True,
+        help="Indique si ce transfert a été créé automatiquement par une route Odoo. "
+             "Les transferts créés par routes peuvent contourner certaines restrictions d'emplacements."
+    )
+
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, **kwargs):
         """Surcharge de search pour filtrer les opérations selon l'utilisateur"""
@@ -325,10 +334,20 @@ class StockPicking(models.Model):
 
     @api.constrains('location_dest_id', 'picking_type_id')
     def _check_location_dest_allowed(self):
-        """Vérifie que l'emplacement de destination est autorisé"""
+        """
+        Vérifie que l'emplacement de destination est autorisé.
+
+        Exception: Les transferts créés automatiquement par des routes Odoo
+        (created_by_route=True) sont autorisés même si la destination n'est
+        pas dans les entrepôts assignés de l'utilisateur.
+        """
         for picking in self:
             # Ignorer pour les transferts automatiques
             if self.env.context.get('skip_location_restriction'):
+                continue
+
+            # ✨ NOUVEAU: Bypasser la validation si créé par une route
+            if picking.created_by_route:
                 continue
 
             # Seulement pour les transferts internes
@@ -376,7 +395,18 @@ class StockPicking(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Crée les pickings avec validation des restrictions"""
+        """
+        Crée les pickings avec validation des restrictions.
+        Marque automatiquement created_by_route=True si créé par une route Odoo.
+        """
+        # Vérifier si le picking est créé par une route
+        from_route = self.env.context.get('from_stock_rule', False)
+
+        # Marquer created_by_route pour les pickings créés par routes
+        if from_route:
+            for vals in vals_list:
+                vals['created_by_route'] = True
+
         return super().create(vals_list)
 
     def write(self, vals):
@@ -524,3 +554,45 @@ class StockQuant(models.Model):
                 args = args + [('id', '=', 0)] if args else [('id', '=', 0)]
 
         return super(StockQuant, self)._search(args, offset=offset, limit=limit, order=order, **kwargs)
+
+
+class StockRule(models.Model):
+    _inherit = 'stock.rule'
+
+    def _get_stock_move_values(self, product_id, product_qty, product_uom, location_id, name, origin, company_id, values):
+        """
+        Override pour marquer les mouvements créés par routes.
+        Cela permet de tracer l'origine du mouvement et d'appliquer des exceptions de sécurité.
+        """
+        move_values = super(StockRule, self)._get_stock_move_values(
+            product_id, product_qty, product_uom, location_id, name, origin, company_id, values
+        )
+
+        # Ajouter un indicateur dans le context pour les pickings créés via cette route
+        # Cela sera utilisé par StockPicking.create() pour marquer created_by_route=True
+        if self.env.context.get('from_stock_rule'):
+            move_values['from_stock_rule'] = True
+
+        return move_values
+
+    def _run_push(self, move):
+        """
+        Override de _run_push pour ajouter le context flag skip_location_restriction
+        et permettre aux routes de créer des transferts inter-entrepôts.
+        """
+        # Ajouter le flag pour bypasser les restrictions lors de la création par route
+        return super(StockRule, self.with_context(
+            skip_location_restriction=True,
+            from_stock_rule=True
+        ))._run_push(move)
+
+    def _run_pull(self, procurements):
+        """
+        Override de _run_pull pour ajouter le context flag skip_location_restriction
+        et permettre aux routes de créer des transferts inter-entrepôts.
+        """
+        # Ajouter le flag pour bypasser les restrictions lors de la création par route
+        return super(StockRule, self.with_context(
+            skip_location_restriction=True,
+            from_stock_rule=True
+        ))._run_pull(procurements)

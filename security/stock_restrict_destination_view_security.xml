@@ -40,11 +40,18 @@
             <field name="model_id" ref="stock.model_stock_picking"/>
             <field name="groups" eval="[(4, ref('restric_entrepot1.group_entrepot_restric'))]"/>
             <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="False"/>
-            <field name="perm_create" eval="False"/>
-            <field name="perm_unlink" eval="False"/>
-            <!-- Restrict to pickings of assigned warehouses -->
-            <field name="domain_force">[('picking_type_id.warehouse_id', 'in', user.warehouse_ids.ids)]</field>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+            <!-- Autorise l'accès aux pickings:
+                 1. Des entrepôts assignés (picking_type_id.warehouse_id)
+                 2. OU créés automatiquement par routes Odoo (created_by_route=True)
+                    -> Permet aux utilisateurs de voir et valider les transferts inter-entrepôts
+                       créés par des routes même si la destination n'est pas dans leurs entrepôts -->
+            <field name="domain_force">['|',
+                ('picking_type_id.warehouse_id', 'in', user.warehouse_ids.ids),
+                ('created_by_route', '=', True)
+            ]</field>
         </record>
 
         <!-- Restriction des mouvements de stock par entrepôt -->
