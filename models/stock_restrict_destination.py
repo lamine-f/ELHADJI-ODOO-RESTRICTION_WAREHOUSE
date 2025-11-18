@@ -6,17 +6,19 @@ class StockLocation(models.Model):
     _inherit = 'stock.location'
 
     # Champ pour lier les emplacements de transit à un entrepôt spécifique
-    warehouse_id = fields.Many2one(
+    # Note: Ce champ est nommé transit_warehouse_id pour éviter un conflit avec le champ
+    # warehouse_id calculé standard d'Odoo sur stock.location
+    transit_warehouse_id = fields.Many2one(
         'stock.warehouse',
-        string='Entrepôt',
+        string='Entrepôt de Transit',
         help='Entrepôt associé à cet emplacement de transit. Obligatoire pour les emplacements de transit.'
     )
 
-    @api.constrains('usage', 'warehouse_id')
+    @api.constrains('usage', 'transit_warehouse_id')
     def _check_transit_warehouse(self):
         """Vérifie que les locations de transit ont un entrepôt assigné"""
         for location in self:
-            if location.usage == 'transit' and not location.warehouse_id:
+            if location.usage == 'transit' and not location.transit_warehouse_id:
                 raise ValidationError(
                     _("Un emplacement de transit doit avoir un entrepôt assigné.")
                 )
@@ -28,9 +30,9 @@ class StockLocation(models.Model):
 
         Retourne un domaine qui autorise:
         - Les emplacements internes sous la racine de chaque entrepôt
-        - Les emplacements de transit liés à chaque entrepôt via warehouse_id
+        - Les emplacements de transit liés à chaque entrepôt via transit_warehouse_id
         - Les emplacements virtuels (view) sous la racine de chaque entrepôt
-        - Les emplacements avec warehouse_id assigné
+        - Les emplacements avec transit_warehouse_id assigné
 
         Args:
             warehouses: Recordset de stock.warehouse
@@ -51,7 +53,7 @@ class StockLocation(models.Model):
                     '|',
                     '&', ('usage', '=', 'internal'), ('id', 'child_of', warehouse.view_location_id.id),
                     '|',
-                    '&', ('usage', '=', 'transit'), ('warehouse_id', '=', warehouse.id),
+                    '&', ('usage', '=', 'transit'), ('transit_warehouse_id', '=', warehouse.id),
                     '&', ('usage', '=', 'view'), ('id', 'child_of', warehouse.view_location_id.id)
                 ]
                 warehouse_conditions.append(warehouse_condition)
@@ -62,12 +64,12 @@ class StockLocation(models.Model):
             for condition in warehouse_conditions[1:]:
                 restriction_domain = ['|'] + restriction_domain + condition
 
-            # Ajouter aussi les locations avec warehouse_id assigné
-            warehouse_location_domain = [('warehouse_id', 'in', warehouse_ids)]
+            # Ajouter aussi les locations avec transit_warehouse_id assigné
+            warehouse_location_domain = [('transit_warehouse_id', 'in', warehouse_ids)]
             restriction_domain = ['|'] + restriction_domain + warehouse_location_domain
         else:
-            # Pas d'entrepôt avec view_location_id, mais on ajoute les locations par warehouse_id
-            restriction_domain = [('warehouse_id', 'in', warehouse_ids)]
+            # Pas d'entrepôt avec view_location_id, mais on ajoute les locations par transit_warehouse_id
+            restriction_domain = [('transit_warehouse_id', 'in', warehouse_ids)]
 
         return restriction_domain
 
@@ -208,7 +210,7 @@ class StockPicking(models.Model):
         Vérifie si une location est autorisée pour l'utilisateur restreint.
 
         Une location est autorisée si :
-        1. Elle a un warehouse_id assigné qui correspond à l'un des entrepôts
+        1. Elle a un transit_warehouse_id assigné qui correspond à l'un des entrepôts
         2. Elle est interne ou virtuelle ET est un enfant de la racine d'un entrepôt
 
         Args:
@@ -223,8 +225,8 @@ class StockPicking(models.Model):
 
         warehouse_ids = warehouses.ids
 
-        # Cas 1: Location avec warehouse_id assigné
-        if location.warehouse_id and location.warehouse_id.id in warehouse_ids:
+        # Cas 1: Location avec transit_warehouse_id assigné
+        if location.transit_warehouse_id and location.transit_warehouse_id.id in warehouse_ids:
             return True
 
         # Cas 2: Location interne ou virtuelle descendante de la racine d'un entrepôt
@@ -244,15 +246,15 @@ class StockPicking(models.Model):
     def _is_valid_inter_transit_location(self, location, warehouses):
         """
         Vérifie si une virtual location est un Inter-Transit valide pour les entrepôts
-        Vérifie d'abord le champ warehouse_id, puis le pattern du nom en fallback
+        Vérifie d'abord le champ transit_warehouse_id, puis le pattern du nom en fallback
         """
         if location.usage != 'view':
             return False
 
-        # Cas 1: Vérifier le champ warehouse_id directement (approche robuste)
-        if location.warehouse_id:
+        # Cas 1: Vérifier le champ transit_warehouse_id directement (approche robuste)
+        if location.transit_warehouse_id:
             warehouse_ids = [w.id for w in warehouses]
-            return location.warehouse_id.id in warehouse_ids
+            return location.transit_warehouse_id.id in warehouse_ids
 
         # Cas 2: Fallback - vérifier le pattern Inter-Transit dans le nom
         complete_name = location.complete_name or ''
@@ -270,22 +272,22 @@ class StockPicking(models.Model):
     def _get_inter_transit_children_locations(self, warehouses):
         """
         Récupère tous les enfants directs des virtual locations Inter-Transit
-        qui ont un warehouse_id correspondant aux entrepôts assignés
+        qui ont un transit_warehouse_id correspondant aux entrepôts assignés
         """
         warehouse_ids = [w.id for w in warehouses]
 
-        # D'abord, chercher toutes les virtual locations Inter-Transit avec warehouse_id
+        # D'abord, chercher toutes les virtual locations Inter-Transit avec transit_warehouse_id
         inter_transit_parents = self.env['stock.location'].with_context(bypass_location_security=True).search([
             '&', ('usage', '=', 'view'),
-            ('warehouse_id', 'in', warehouse_ids)
+            ('transit_warehouse_id', 'in', warehouse_ids)
         ])
 
-        # Puis, chercher tous les enfants directs de ces locations qui ont aussi warehouse_id
+        # Puis, chercher tous les enfants directs de ces locations qui ont aussi transit_warehouse_id
         children = self.env['stock.location']
         for parent in inter_transit_parents:
             parent_children = self.env['stock.location'].with_context(bypass_location_security=True).search([
                 '&', ('location_id', '=', parent.id),
-                ('warehouse_id', 'in', warehouse_ids)
+                ('transit_warehouse_id', 'in', warehouse_ids)
             ])
             children |= parent_children
 
@@ -441,7 +443,7 @@ class StockMove(models.Model):
         Les mouvements de stock peuvent transiter par des locations virtuelles (views),
         donc cette recherche inclut :
         - Locations internes (stockage réel)
-        - Locations avec warehouse_id assigné
+        - Locations avec transit_warehouse_id assigné
 
         NOTE: Cette restriction utilise location_id OU location_dest_id car les mouvements
         peuvent commencer et se terminer dans les locations des entrepôts assignés.
@@ -462,9 +464,9 @@ class StockMove(models.Model):
                 allowed_location_ids = self.env['stock.location']
 
                 for warehouse in warehouses:
-                    # Locations avec warehouse_id assigné directement
+                    # Locations avec transit_warehouse_id assigné directement
                     warehouse_locations = self.env['stock.location'].with_context(bypass_location_security=True).search([
-                        ('warehouse_id', '=', warehouse.id)
+                        ('transit_warehouse_id', '=', warehouse.id)
                     ])
                     allowed_location_ids |= warehouse_locations
 
@@ -504,7 +506,7 @@ class StockQuant(models.Model):
         Les quantités devraient exister que dans des locations réelles (internal), pas dans
         les locations virtuelles (views). Cette recherche autorise :
         - Locations internes sous la racine de chaque entrepôt
-        - Locations avec warehouse_id assigné directement
+        - Locations avec transit_warehouse_id assigné directement
         - Locations virtuelles (pour la complétude, mais peu de quantités réelles y sont)
 
         NOTE: Contrairement à StockMove._search(), celle-ci :
@@ -528,9 +530,9 @@ class StockQuant(models.Model):
                 allowed_location_ids = self.env['stock.location']
 
                 for warehouse in warehouses:
-                    # Locations avec warehouse_id assigné directement
+                    # Locations avec transit_warehouse_id assigné directement
                     warehouse_locations = self.env['stock.location'].with_context(bypass_location_security=True).search([
-                        ('warehouse_id', '=', warehouse.id)
+                        ('transit_warehouse_id', '=', warehouse.id)
                     ])
                     allowed_location_ids |= warehouse_locations
 

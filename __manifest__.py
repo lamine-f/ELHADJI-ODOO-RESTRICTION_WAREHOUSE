@@ -1,6 +1,6 @@
 {
     'name': 'Restriction Entrepot',
-    'version': '1.8',
+    'version': '1.8.1',
     'description': "Module de restriction d'entrepôt",
     'author': 'TOFTAL',
     'category': 'Inventory',

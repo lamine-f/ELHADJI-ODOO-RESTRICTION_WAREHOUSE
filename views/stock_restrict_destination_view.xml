@@ -13,22 +13,6 @@
                 <field name="created_by_route" invisible="1"/>
             </field>
 
-            <!-- Ajouter un badge visuel pour les transferts créés par routes -->
-            <field name="name" position="after">
-                <div class="oe_button_box" name="button_box" position="inside">
-                    <button name="action_view_route_info"
-                            type="object"
-                            class="oe_stat_button"
-                            icon="fa-route"
-                            attrs="{'invisible': [('created_by_route', '=', False)]}">
-                        <div class="o_field_widget o_stat_info">
-                            <span class="o_stat_text">Créé par</span>
-                            <span class="o_stat_text">Route</span>
-                        </div>
-                    </button>
-                </div>
-            </field>
-            
             <!-- Appliquer domaine sur l'emplacement source pour les utilisateurs restreints -->
             <field name="location_id" position="attributes">
                 <attribute name="domain">[("id", "in", allowed_location_ids)]</attribute>
